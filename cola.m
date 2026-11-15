@@ -7,9 +7,7 @@ switch p.modelo
     case 1
         % Modelo 1 hecho
     case 2
-        % TODO (b): two parallel servers.
-        warning('cola:PendingModel', 'Model 2 is pending.');
-        return;
+        % Modelo 2 hecho
     case 3
         % TODO (c): two queues and one server.
         warning('cola:PendingModel', 'Model 3 is pending.');
@@ -60,6 +58,9 @@ if p.modelo == 1
 end
 ATTRIB = zeros(QLIMIT,1);
 BUSY = 0; LQ = 0; NEE = 0; NES = 0; CLQ = 0; CSUTIL = 0; TQT = 0; TNOW = 0;
+if p.modelo == 2
+    BUSY2 = 0; CSUTIL2 = 0; TND2 = 99999; % Variables para el segundo servidor
+end
 %
 %  Programa el primer arribo en el tiempo 0. Fija el tiempo de la proxima
 %  partida en un numero grande
@@ -155,9 +156,39 @@ TNA = TNOW+MINIAT+(MAXIAT - MINIAT)*rand(1);
 %   igual a su tiempo de arribo. Retorno a la rutina de eventos.
 %
 
-if (BUSY == 1) 
+if modelo == 2% Ejercicio b.
+
+    if BUSY == 0
+        % Ocupar servidor 1
+        BUSY = 1;
+        TS = MINST + (MAXST - MINST) * rand(1);
+        TS = fix(TS * 100) / 100;
+        TND = TNOW + TS;
+
+    elseif BUSY2 == 0
+        % Ocupar servidor 2
+        BUSY2 = 1;
+        TS = MINST + (MAXST - MINST) * rand(1);
+        TS = fix(TS * 100) / 100;
+        TND2 = TNOW + TS;
+    else
+        % Ambos servidores ocupados: ingresar a la cola
+        LQ = LQ + 1;
+        ATTRIB(LQ) = TNOW;
+
+        if (LQ > QLIMIT)
+            disp(' Error - Overflow en la Cola! (LQ>100)')
+            ATTRIB(LQ) = TNOW;
+        end
+
+    end
+
+else 
+if (BUSY == 1)
+
     switch modelo
-        case 1 % Ejercicio a.
+        case 1% Ejercicio a.
+
             if (LQ >= QLIMIT)
                 disp(' Error - Overflow en la Cola! (LQ>10) (Modelo a)')
                 tiemposRechazo = [tiemposRechazo, TNOW]; % Tiempo de rechazo y posicion = cantidad de rechazos
@@ -165,28 +196,31 @@ if (BUSY == 1)
                 LQ = LQ + 1;
                 ATTRIB(LQ) = TNOW;
             end
+
         otherwise
             LQ = LQ + 1;
+
             if (LQ > QLIMIT)
                 disp(' Error - Overflow en la Cola! (LQ>100)')
                 ATTRIB(LQ) = TNOW;
             end
+
             TND = TND;
     end
-   
-     
+
 else
-%
-%   Si se encontro el servidor desocupado, se lo ocupa (BUSY=1)
-%   Se asigna la Entidad recien arribada al servidor desocupado.
-%   Se calcula el tiempo de Servicio (TS) para la entidad.
-%   Se programa el tiempo de partida para la Entidad.
-%
+    %
+    %   Si se encontro el servidor desocupado, se lo ocupa (BUSY=1)
+    %   Se asigna la Entidad recien arribada al servidor desocupado.
+    %   Se calcula el tiempo de Servicio (TS) para la entidad.
+    %   Se programa el tiempo de partida para la Entidad.
+    %
     BUSY = 1;
     TS = MINST + (MAXST - MINST) * rand(1);
-    TS = fix(TS * 100)/100;
+    TS = fix(TS * 100) / 100;
     TND = TNOW + TS;
-   
+
+end
 end
 end
 
@@ -294,5 +328,13 @@ switch modelo
 end
 
 PRO=ASUTIL*100;
-fprintf('Promedio de Uso del Servidor= %2.3f', PRO);
+if modelo == 2
+    PRO2 = ASUTIL2*100;
+end
+fprintf('Promedio de Uso del Servidor 1= %2.3f', PRO);
+if modelo == 2
+    ASUTIL2 = CSUTIL2/TNOW;
+    PRO2 = ASUTIL2*100;
+    fprintf('Promedio de Uso del Servidor 2= %2.3f', PRO2);
+end
 end
