@@ -5,8 +5,7 @@ function cola(p)
 % Seleccion del ejercicio.
 switch p.modelo
     case 1
-        % TODO (a): finite queue and rejected arrivals.
-        warning('cola:PendingModel', 'Model 1 is pending. Running the original single-server queue.');
+        % Modelo 1 hecho
     case 2
         % TODO (b): two parallel servers.
         warning('cola:PendingModel', 'Model 2 is pending.');
@@ -53,6 +52,12 @@ end
 
 %********************     INICIALIZACION      *********************
 QLIMIT = 200;
+tiemposRechazo = []; %vector para ejercicio a
+
+% Ejercicio a
+if p.modelo == 1
+    QLIMIT = 10;
+end
 ATTRIB = zeros(QLIMIT,1);
 BUSY = 0; LQ = 0; NEE = 0; NES = 0; CLQ = 0; CSUTIL = 0; TQT = 0; TNOW = 0;
 %
@@ -96,11 +101,12 @@ MAXST = 2;
             %**************** ACTIVA LA BANDERA DE CORTE Y LLAMA A LA
             %FUNCION DE SALIDA PARA MOSTRAR LOS RESULTADOS *************
             corte=1;
-            OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ); 
+            OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo);
         else
             %********************* EVENTOS DE LLEGADA*********************
             %
-            [NEE, TNA, BUSY, LQ, ATTRIB, TND]=ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND);
+            [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo] = ...
+                ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, p.modelo, tiemposRechazo);
                      
         end
   
@@ -112,7 +118,7 @@ MAXST = 2;
             %**************** ACTIVA LA BANDERA DE CORTE Y LLAMA A LA
             %FUNCION DE SALIDA PARA MOSTRAR LOS RESULTADOS *************
             corte=1;
-            OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ); 
+            OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo);
         else
             %******************** EVENTOS DE PARTIDA *******************
             %
@@ -129,7 +135,8 @@ MAXST = 2;
   end
 end
 
-function [NEE, TNA, BUSY, LQ, ATTRIB, TND] = ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND)
+function [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo] = ...
+    ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, modelo, tiemposRechazo)
 %********************* FUNCION EVENTOS DE LLEGADA*********************
 %
 %   Incrementa el numero total de Entidades que Entran en el sistema.
@@ -149,14 +156,24 @@ TNA = TNOW+MINIAT+(MAXIAT - MINIAT)*rand(1);
 %
 
 if (BUSY == 1) 
-   LQ = LQ + 1;
-   if (LQ > QLIMIT) 
-       disp(' Error - Overflow en la Cola! (LQ>100)')
-       ATTRIB(LQ) = TNOW;
-         
-   end
+    switch modelo
+        case 1 % Ejercicio a.
+            if (LQ >= QLIMIT)
+                disp(' Error - Overflow en la Cola! (LQ>10) (Modelo a)')
+                tiemposRechazo = [tiemposRechazo, TNOW]; % Tiempo de rechazo y posicion = cantidad de rechazos
+            else
+                LQ = LQ + 1;
+                ATTRIB(LQ) = TNOW;
+            end
+        otherwise
+            LQ = LQ + 1;
+            if (LQ > QLIMIT)
+                disp(' Error - Overflow en la Cola! (LQ>100)')
+                ATTRIB(LQ) = TNOW;
+            end
+            TND = TND;
+    end
    
-   TND=TND;
      
 else
 %
@@ -229,7 +246,7 @@ CLQ = CLQ+LQ*(TNOW - TLE);
 CSUTIL=CSUTIL+BUSY*(TNOW-TLE);
 end
 
-function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ)
+function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo)
 %************************* FUNCION DE SALIDA  **************************
 %
 %
@@ -264,6 +281,18 @@ fprintf('Promedio de tiempo de espera en la Cola= %2.3f', AWTQ);
 fprintf('\n');
 fprintf('Longitud Promedio (esperada) de la Cola= %2.3f', ALQ);
 fprintf('\n');
+
+switch modelo
+    case 1
+        fprintf('Tiempos de rechazo: %s\n', mat2str(tiemposRechazo)) % para comprobar
+        fprintf('Cantidad de rechazos: %d\n', length(tiemposRechazo));
+        if numel(tiemposRechazo) >= 2
+            fprintf('Tiempo medio entre rechazos: %.2f\n', mean(diff(tiemposRechazo)));
+        else
+            fprintf('Tiempo medio entre rechazos: sin datos suficientes\n');
+        end
+end
+
 PRO=ASUTIL*100;
 fprintf('Promedio de Uso del Servidor= %2.3f', PRO);
 end
