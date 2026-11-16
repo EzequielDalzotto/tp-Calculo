@@ -11,9 +11,7 @@ switch p.modelo
     case 3
         % Modelo 3 hecho
     case 4
-        % TODO (d): abandonment after waiting.
-        warning('cola:PendingModel', 'Model 4 is pending.');
-        return;
+        % Abandonment after waiting.
 end
 
 % cola simple - 1 servidor - (VERSION MATLAB)
@@ -60,6 +58,8 @@ BUSY2 = 0; CSUTIL2 = 0; TND2 = 0; % Ejercicio b
 
 LQ2 = 0; ATTRIB2 = zeros(QLIMIT,1); TQT2 = 0; CLQ2 = 0; NQ1 = 0; NQ2 = 0; % Ejercicio c
 
+NAbandonos = 0; % Ejercicio d
+
 %
 %  Programa el primer arribo en el tiempo 0. Fija el tiempo de la proxima
 %  partida en un numero grande
@@ -93,14 +93,30 @@ MAXST = 2;
   while corte==0
     
     TLE = TNOW;
-    if p.modelo == 2 || p.modelo == 3
+    if p.modelo == 2 || p.modelo == 3 || p.modelo == 4
         LQAnterior = LQ;
         LQ2Anterior = LQ2;
         BUSYAnterior = BUSY;
         BUSY2Anterior = BUSY2;
     end
       
-    if (TNA < TND || (p.modelo == 2 && BUSY == 0)) && ...
+    proximoAbandono = false;
+    if p.modelo == 4 && LQ > 0
+        tiempoAbandono = ATTRIB(1) + 3;
+        % Una salida en el plazo límite permite que la primera entidad en espera comience a recibir servicio.
+        proximoAbandono = tiempoAbandono <= TNA && tiempoAbandono < TND;
+    end
+
+    if proximoAbandono
+        TNOW = tiempoAbandono;
+        if TNOW >= LS
+            corte = 1;
+        else
+            LQ = LQ - 1;
+            ATTRIB(1:LQ) = ATTRIB(2:LQ+1);
+            NAbandonos = NAbandonos + 1;
+        end
+    elseif (TNA < TND || ((p.modelo == 2 || p.modelo == 4) && BUSY == 0)) && ...
             (p.modelo ~= 2 || BUSY2 == 0 || TNA < TND2)
        
         TNOW = TNA;
@@ -147,7 +163,7 @@ MAXST = 2;
         %****************** Llama la funcion STAT para actualizar las estadisticas de base tiempo ******************
         %
         
-    if p.modelo == 2 || p.modelo == 3
+    if p.modelo == 2 || p.modelo == 3 || p.modelo == 4
         TNOW = min(TNOW, LS);
         [CLQ, CSUTIL, CSUTIL2, CLQ2] = ...
             STAT(CLQ, LQAnterior, TNOW, TLE, CSUTIL, BUSYAnterior, ...
@@ -157,7 +173,7 @@ MAXST = 2;
     end
                    
   end
-  OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2);
+  OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2, NAbandonos, BUSY);
 end
 
 function [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2, LQ2, ATTRIB2] = ...
@@ -221,6 +237,10 @@ if (BUSY == 1)
                 LQ = LQ + 1;
                 ATTRIB(LQ) = TNOW;
             end
+
+        case 4
+            LQ = LQ + 1;
+            ATTRIB(LQ) = TNOW;
 
         otherwise
             if modelo == 3 % Ejercicio c.
@@ -388,7 +408,7 @@ if modelo == 2
 end
 end
 
-function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2)
+function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2, NAbandonos, BUSY)
 %************************* FUNCION DE SALIDA  **************************
 %
 %
@@ -418,7 +438,14 @@ fprintf('CSUTIL= %2.3f', CSUTIL);
 fprintf('\n');
 fprintf('Tiempo Total Perdido en la Cola 1= %2.3f', TQT);
 fprintf('\n');
-if modelo ~= 3
+if modelo == 4
+    NAtendidos = NES + BUSY;
+    if NAtendidos > 0
+        fprintf('Promedio de tiempo de espera en la Cola 1= %2.3f', TQT/NAtendidos);
+    else
+        fprintf('Promedio de tiempo de espera en la Cola 1= sin datos');
+    end
+elseif modelo ~= 3
     fprintf('Promedio de tiempo de espera en la Cola 1= %2.3f', TQT/NES);
 elseif NQ1 > 0
     fprintf('Promedio de tiempo de espera en la Cola 1= %2.3f', TQT/NQ1);
@@ -449,6 +476,8 @@ switch modelo
         fprintf('\n');
         fprintf('Longitud Promedio (esperada) de la Cola 2= %2.3f', CLQ2/TNOW);
         fprintf('\n');
+    case 4
+        fprintf('Cantidad de abandonos= %d\n', NAbandonos);
 end
 
 PRO=ASUTIL*100;
