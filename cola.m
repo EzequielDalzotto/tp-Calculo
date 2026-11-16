@@ -58,9 +58,7 @@ if p.modelo == 1
 end
 ATTRIB = zeros(QLIMIT,1);
 BUSY = 0; LQ = 0; NEE = 0; NES = 0; CLQ = 0; CSUTIL = 0; TQT = 0; TNOW = 0;
-if p.modelo == 2
-    BUSY2 = 0; CSUTIL2 = 0; TND2 = 99999; % Variables para el segundo servidor
-end
+BUSY2 = 0; CSUTIL2 = 0; TND2 = 0;
 %
 %  Programa el primer arribo en el tiempo 0. Fija el tiempo de la proxima
 %  partida en un numero grande
@@ -93,25 +91,30 @@ MAXST = 2;
   
   while corte==0
     
-    TLE = TNOW; 
+    TLE = TNOW;
+    if p.modelo == 2
+        LQAnterior = LQ;
+        BUSYAnterior = BUSY;
+        BUSY2Anterior = BUSY2;
+    end
       
-    if (TNA < TND)
+    if (TNA < TND || (p.modelo == 2 && BUSY == 0)) && ...
+            (p.modelo ~= 2 || BUSY2 == 0 || TNA < TND2)
        
         TNOW = TNA;
         if (TNOW >= LS)
             %**************** ACTIVA LA BANDERA DE CORTE Y LLAMA A LA
             %FUNCION DE SALIDA PARA MOSTRAR LOS RESULTADOS *************
             corte=1;
-            OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo);
         else
             %********************* EVENTOS DE LLEGADA*********************
             %
-            [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo] = ...
-                ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, p.modelo, tiemposRechazo);
+            [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2] = ...
+                ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, p.modelo, tiemposRechazo, BUSY2, TND2);
                      
         end
   
-    else
+    elseif p.modelo ~= 2 || BUSY2 == 0 || (BUSY == 1 && TND <= TND2)
         
         TNOW = TND;
         
@@ -119,7 +122,6 @@ MAXST = 2;
             %**************** ACTIVA LA BANDERA DE CORTE Y LLAMA A LA
             %FUNCION DE SALIDA PARA MOSTRAR LOS RESULTADOS *************
             corte=1;
-            OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo);
         else
             %******************** EVENTOS DE PARTIDA *******************
             %
@@ -127,17 +129,30 @@ MAXST = 2;
             
             
         end
+    else % Proximo evento: partida del servidor 2
+        TNOW = TND2;
+        if (TNOW >= LS)
+            corte=1;
+        else
+            [NES, TQT, BUSY2, LQ, ATTRIB, TND2]=DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY2);
+        end
     end
         %****************** Llama la funcion STAT para actualizar las estadisticas de base tiempo ******************
         %
         
-        [CLQ, CSUTIL]=STAT(CLQ, LQ, TNOW,TLE, CSUTIL, BUSY);
+    if p.modelo == 2
+        TNOW = min(TNOW, LS);
+        [CLQ, CSUTIL, CSUTIL2] = STAT(CLQ, LQAnterior, TNOW, TLE, CSUTIL, BUSYAnterior, p.modelo, CSUTIL2, BUSY2Anterior);
+    elseif ~corte
+        [CLQ, CSUTIL] = STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, p.modelo, CSUTIL2, BUSY2);
+    end
                    
   end
+  OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo, CSUTIL2);
 end
 
-function [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo] = ...
-    ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, modelo, tiemposRechazo)
+function [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2] = ...
+    ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, modelo, tiemposRechazo, BUSY2, TND2)
 %********************* FUNCION EVENTOS DE LLEGADA*********************
 %
 %   Incrementa el numero total de Entidades que Entran en el sistema.
@@ -268,7 +283,7 @@ else
 end
 end
 
-function [CLQ, CSUTIL]=STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY)
+function [CLQ, CSUTIL, CSUTIL2]=STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, modelo, CSUTIL2, BUSY2)
 %****************** FUNCION DE ESTADISTICAS BASE TIEMPO ******************
 %
 %
@@ -278,9 +293,12 @@ function [CLQ, CSUTIL]=STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY)
 
 CLQ = CLQ+LQ*(TNOW - TLE);
 CSUTIL=CSUTIL+BUSY*(TNOW-TLE);
+if modelo == 2
+    CSUTIL2=CSUTIL2+BUSY2*(TNOW-TLE);
+end
 end
 
-function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo)
+function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo, CSUTIL2)
 %************************* FUNCION DE SALIDA  **************************
 %
 %
@@ -328,13 +346,10 @@ switch modelo
 end
 
 PRO=ASUTIL*100;
-if modelo == 2
-    PRO2 = ASUTIL2*100;
-end
 fprintf('Promedio de Uso del Servidor 1= %2.3f', PRO);
 if modelo == 2
     ASUTIL2 = CSUTIL2/TNOW;
     PRO2 = ASUTIL2*100;
-    fprintf('Promedio de Uso del Servidor 2= %2.3f', PRO2);
+    fprintf('\nPromedio de Uso del Servidor 2= %2.3f', PRO2);
 end
 end
