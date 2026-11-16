@@ -9,9 +9,7 @@ switch p.modelo
     case 2
         % Modelo 2 hecho
     case 3
-        % TODO (c): two queues and one server.
-        warning('cola:PendingModel', 'Model 3 is pending.');
-        return;
+        % Modelo 3 hecho
     case 4
         % TODO (d): abandonment after waiting.
         warning('cola:PendingModel', 'Model 4 is pending.');
@@ -58,7 +56,10 @@ if p.modelo == 1
 end
 ATTRIB = zeros(QLIMIT,1);
 BUSY = 0; LQ = 0; NEE = 0; NES = 0; CLQ = 0; CSUTIL = 0; TQT = 0; TNOW = 0;
-BUSY2 = 0; CSUTIL2 = 0; TND2 = 0;
+BUSY2 = 0; CSUTIL2 = 0; TND2 = 0; % Ejercicio b
+
+LQ2 = 0; ATTRIB2 = zeros(QLIMIT,1); TQT2 = 0; CLQ2 = 0; NQ1 = 0; NQ2 = 0; % Ejercicio c
+
 %
 %  Programa el primer arribo en el tiempo 0. Fija el tiempo de la proxima
 %  partida en un numero grande
@@ -92,8 +93,9 @@ MAXST = 2;
   while corte==0
     
     TLE = TNOW;
-    if p.modelo == 2
+    if p.modelo == 2 || p.modelo == 3
         LQAnterior = LQ;
+        LQ2Anterior = LQ2;
         BUSYAnterior = BUSY;
         BUSY2Anterior = BUSY2;
     end
@@ -109,8 +111,9 @@ MAXST = 2;
         else
             %********************* EVENTOS DE LLEGADA*********************
             %
-            [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2] = ...
-                ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, p.modelo, tiemposRechazo, BUSY2, TND2);
+            [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2, LQ2, ATTRIB2] = ...
+                ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, ...
+                       TND, p.modelo, tiemposRechazo, BUSY2, TND2, LQ2, ATTRIB2);
                      
         end
   
@@ -125,7 +128,9 @@ MAXST = 2;
         else
             %******************** EVENTOS DE PARTIDA *******************
             %
-            [NES, TQT, BUSY, LQ, ATTRIB, TND]=DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY);
+            [NES, TQT, BUSY, LQ, ATTRIB, TND, LQ2, ATTRIB2, TQT2, NQ1, NQ2] = ...
+                DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY, ...
+                       p.modelo, LQ2, ATTRIB2, TQT2, NQ1, NQ2);
             
             
         end
@@ -134,25 +139,30 @@ MAXST = 2;
         if (TNOW >= LS)
             corte=1;
         else
-            [NES, TQT, BUSY2, LQ, ATTRIB, TND2]=DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY2);
+            [NES, TQT, BUSY2, LQ, ATTRIB, TND2] = ...
+                DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY2, ...
+                       p.modelo, LQ2, ATTRIB2, TQT2, NQ1, NQ2);
         end
     end
         %****************** Llama la funcion STAT para actualizar las estadisticas de base tiempo ******************
         %
         
-    if p.modelo == 2
+    if p.modelo == 2 || p.modelo == 3
         TNOW = min(TNOW, LS);
-        [CLQ, CSUTIL, CSUTIL2] = STAT(CLQ, LQAnterior, TNOW, TLE, CSUTIL, BUSYAnterior, p.modelo, CSUTIL2, BUSY2Anterior);
+        [CLQ, CSUTIL, CSUTIL2, CLQ2] = ...
+            STAT(CLQ, LQAnterior, TNOW, TLE, CSUTIL, BUSYAnterior, ...
+                 p.modelo, CSUTIL2, BUSY2Anterior, CLQ2, LQ2Anterior);
     elseif ~corte
-        [CLQ, CSUTIL] = STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, p.modelo, CSUTIL2, BUSY2);
+        [CLQ, CSUTIL] = STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, p.modelo, CSUTIL2, BUSY2, CLQ2, LQ2);
     end
                    
   end
-  OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo, CSUTIL2);
+  OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2);
 end
 
-function [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2] = ...
-    ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, TND, modelo, tiemposRechazo, BUSY2, TND2)
+function [NEE, TNA, BUSY, LQ, ATTRIB, TND, tiemposRechazo, BUSY2, TND2, LQ2, ATTRIB2] = ...
+    ARRIBE(NEE, TNOW, MINIAT, MAXIAT, BUSY, LQ, QLIMIT, ATTRIB, MINST, MAXST, ...
+           TND, modelo, tiemposRechazo, BUSY2, TND2, LQ2, ATTRIB2)
 %********************* FUNCION EVENTOS DE LLEGADA*********************
 %
 %   Incrementa el numero total de Entidades que Entran en el sistema.
@@ -213,14 +223,27 @@ if (BUSY == 1)
             end
 
         otherwise
-            LQ = LQ + 1;
+            if modelo == 3 % Ejercicio c.
+                if (LQ <= LQ2) && (LQ < QLIMIT)
+                    LQ = LQ + 1;
+                    ATTRIB(LQ) = TNOW;
+                elseif (LQ2 < QLIMIT)
+                    LQ2 = LQ2 + 1;
+                    ATTRIB2(LQ2) = TNOW;
+                else
+                    disp(' Error - Overflow en la Cola! (LQ>100)')
+                end
+            else
+                LQ = LQ + 1;
 
-            if (LQ > QLIMIT)
-                disp(' Error - Overflow en la Cola! (LQ>100)')
-                ATTRIB(LQ) = TNOW;
+                if (LQ > QLIMIT)
+                    disp(' Error - Overflow en la Cola! (LQ>100)')
+                    ATTRIB(LQ) = TNOW;
+                end
+
+                TND = TND;
             end
-
-            TND = TND;
+            
     end
 
 else
@@ -239,51 +262,114 @@ end
 end
 end
 
-function [NES, TQT, BUSY, LQ, ATTRIB, TND]=DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY)
+function [NES, TQT, BUSY, LQ, ATTRIB, TND, LQ2, ATTRIB2, TQT2, NQ1, NQ2] = ...
+    DEPART(NES, LQ, TNOW, ATTRIB, TQT, MINST, MAXST, BUSY, modelo, LQ2, ATTRIB2, TQT2, NQ1, NQ2)
 %******************** FUNCION EVENTOS DE PARTIDA *******************
 %
 %   Se Incrementa el Numero total de Entidades Servidas
 %
 NES = NES + 1;
-%
-%   Si la cola esta vacia se pone el Servidor
-%   en disponibilidad (BUSY=0).
-%   La proxima partida puede no estar programada por lo que se hace
-%   TND igual a un numero grande.
-%
-if (LQ == 0) 
-    BUSY = 0; TND = 99999; 
-    
-else
-%
-%   Si la cola no esta vacia, se calcula el tiempo de espera en la cola
-%   para la entidad que comienza su servicio.
-%   Se calcula el tiempo total en la Cola y se decrementa la longitud de
-%   la misma.
-%
-    BUSY=BUSY;
-    QT = TNOW - ATTRIB(1);
-    TQT = TQT + QT;
-    LQ = LQ - 1;
-%
-%   Se desplaza los valores de los atributos una posicion, a medida que la
-%   cola 1 se desplaza hacia adelante.
-%
-    for i=1:LQ
-        ATTRIB(i)=ATTRIB(i+1);
-        i=i+1;
+
+
+if modelo == 3
+    %
+    %   Si las colas estan vacias se pone el Servidor
+    %   en disponibilidad (BUSY=0).
+    %   La proxima partida puede no estar programada por lo que se hace
+    %   TND igual a un numero grande.
+    %
+    if (LQ == 0) && (LQ2 == 0)
+        BUSY = 0; TND = 99999;
+    else
+        %
+        %   Si la cola no esta vacia, se calcula el tiempo de espera en la cola
+        %   para la entidad que comienza su servicio.
+        %   Se calcula el tiempo total en la Cola y se decrementa la longitud de
+        %   la misma.
+        %
+        if (LQ >= LQ2)
+            BUSY = 1;
+            QT = TNOW - ATTRIB(1);
+            TQT = TQT + QT;
+            NQ1 = NQ1 + 1;
+            LQ = LQ - 1;
+
+            %
+            %   Se desplaza los valores de los atributos una posicion, a medida que la
+            %   cola 1 se desplaza hacia adelante.
+            %
+            for i=1:LQ
+                ATTRIB(i)=ATTRIB(i+1);
+                i=i+1;
+            end
+
+            %
+            %   Se programa el tiempo de partida para la entidad que comenzo a ser
+            %   atendida y se vuelve a la rutina de eventos.
+            %
+            TS = MINST + (MAXST - MINST) * rand(1);
+            TS = floor(TS * 100)/100;
+            TND = TNOW+TS;
+
+        else
+            BUSY = 1;
+            QT = TNOW - ATTRIB2(1);
+            TQT2 = TQT2 + QT;
+            NQ2 = NQ2 + 1;
+            LQ2 = LQ2 - 1;
+
+            for i=1:LQ2
+                ATTRIB2(i)=ATTRIB2(i+1);
+                i=i+1;
+            end
+
+            TS = MINST + (MAXST - MINST) * rand(1);
+            TS = floor(TS * 100)/100;
+            TND = TNOW+TS;
+
+        end
     end
-%
-%   Se programa el tiempo de partida para la entidad que comenzo a ser
-%   atendida y se vuelve a la rutina de eventos.
-%
-    TS = MINST + (MAXST - MINST) * rand(1);
-    TS = floor(TS * 100)/100;
-    TND = TNOW+TS;
-end
+else
+    %
+    %   Si la cola esta vacia se pone el Servidor
+    %   en disponibilidad (BUSY=0).
+    %   La proxima partida puede no estar programada por lo que se hace
+    %   TND igual a un numero grande.
+    %
+    if (LQ == 0) 
+        BUSY = 0; TND = 99999; 
+        
+    else
+    %
+    %   Si la cola no esta vacia, se calcula el tiempo de espera en la cola
+    %   para la entidad que comienza su servicio.
+    %   Se calcula el tiempo total en la Cola y se decrementa la longitud de
+    %   la misma.
+    %
+        BUSY=BUSY;
+        QT = TNOW - ATTRIB(1);
+        TQT = TQT + QT;
+        LQ = LQ - 1;
+    %
+    %   Se desplaza los valores de los atributos una posicion, a medida que la
+    %   cola 1 se desplaza hacia adelante.
+    %
+        for i=1:LQ
+            ATTRIB(i)=ATTRIB(i+1);
+            i=i+1;
+        end
+    %
+    %   Se programa el tiempo de partida para la entidad que comenzo a ser
+    %   atendida y se vuelve a la rutina de eventos.
+    %
+        TS = MINST + (MAXST - MINST) * rand(1);
+        TS = floor(TS * 100)/100;
+        TND = TNOW+TS;
+    end
+    end
 end
 
-function [CLQ, CSUTIL, CSUTIL2]=STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, modelo, CSUTIL2, BUSY2)
+function [CLQ, CSUTIL, CSUTIL2, CLQ2] = STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, modelo, CSUTIL2, BUSY2, CLQ2, LQ2)
 %****************** FUNCION DE ESTADISTICAS BASE TIEMPO ******************
 %
 %
@@ -292,20 +378,23 @@ function [CLQ, CSUTIL, CSUTIL2]=STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, modelo, C
 %
 
 CLQ = CLQ+LQ*(TNOW - TLE);
+if modelo == 3
+    CLQ2 = CLQ2+LQ2*(TNOW - TLE);
+end
+
 CSUTIL=CSUTIL+BUSY*(TNOW-TLE);
 if modelo == 2
     CSUTIL2=CSUTIL2+BUSY2*(TNOW-TLE);
 end
 end
 
-function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo, CSUTIL2)
+function OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2)
 %************************* FUNCION DE SALIDA  **************************
 %
 %
 %   Calcula el tiempo medio de espera en la Cola (AWTQ) como
 %   Estadistico de base observacion.
 %
-AWTQ = TQT/NES;
 %
 %   Calcula los promedios ponderados de los estadisticos de base tiempo
 %   e imprime los resultados
@@ -327,11 +416,17 @@ fprintf('TNOW= %2.3f', TNOW);
 fprintf('\n');
 fprintf('CSUTIL= %2.3f', CSUTIL);
 fprintf('\n');
-fprintf('Tiempo Total Perdido en la Cola= %2.3f', TQT);
+fprintf('Tiempo Total Perdido en la Cola 1= %2.3f', TQT);
 fprintf('\n');
-fprintf('Promedio de tiempo de espera en la Cola= %2.3f', AWTQ);
+if modelo ~= 3
+    fprintf('Promedio de tiempo de espera en la Cola 1= %2.3f', TQT/NES);
+elseif NQ1 > 0
+    fprintf('Promedio de tiempo de espera en la Cola 1= %2.3f', TQT/NQ1);
+else
+    fprintf('Promedio de tiempo de espera en la Cola 1= sin datos');
+end
 fprintf('\n');
-fprintf('Longitud Promedio (esperada) de la Cola= %2.3f', ALQ);
+fprintf('Longitud Promedio (esperada) de la Cola 1= %2.3f', ALQ);
 fprintf('\n');
 
 switch modelo
@@ -343,6 +438,17 @@ switch modelo
         else
             fprintf('Tiempo medio entre rechazos: sin datos suficientes\n');
         end
+    case 3
+        fprintf('Tiempo Total Perdido en la Cola 2= %2.3f', TQT2);
+        fprintf('\n');
+        if NQ2 > 0
+            fprintf('Promedio de tiempo de espera en la Cola 2= %2.3f', TQT2/NQ2);
+        else
+            fprintf('Promedio de tiempo de espera en la Cola 2= sin datos');
+        end
+        fprintf('\n');
+        fprintf('Longitud Promedio (esperada) de la Cola 2= %2.3f', CLQ2/TNOW);
+        fprintf('\n');
 end
 
 PRO=ASUTIL*100;
