@@ -54,7 +54,7 @@ if p.modelo == 1
 end
 ATTRIB = zeros(QLIMIT,1);
 BUSY = 0; LQ = 0; NEE = 0; NES = 0; CLQ = 0; CSUTIL = 0; TQT = 0; TNOW = 0;
-BUSY2 = 0; CSUTIL2 = 0; TND2 = 0; % Ejercicio b
+BUSY2 = 0; CSUTIL2 = 0; TND2 = 99999; % Ejercicio b
 
 LQ2 = 0; ATTRIB2 = zeros(QLIMIT,1); TQT2 = 0; CLQ2 = 0; NQ1 = 0; NQ2 = 0; % Ejercicio c
 
