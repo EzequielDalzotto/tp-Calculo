@@ -2,6 +2,22 @@ function cola(p)
 % p.modelo a =1 ,b=2, c=3, d=4
 % p.LS duracion de la simulacion
 
+% Ejemplos para a y d
+%Ejercicio A
+%LS 16
+% MINIAT = 1;
+% MAXIAT = 1;
+% MINST = 20;
+% MAXST = 20;
+
+#Ejercicio D
+% LS 6
+% MINIAT = 1;
+% MAXIAT = 1;
+% MINST = 4;
+% MAXST = 4;
+
+
 % Seleccion del ejercicio.
 switch p.modelo
     case 1
