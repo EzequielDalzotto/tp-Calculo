@@ -109,12 +109,10 @@ MAXST = 2;
   while corte==0
     
     TLE = TNOW;
-    if p.modelo == 2 || p.modelo == 3 || p.modelo == 4
-        LQAnterior = LQ;
-        LQ2Anterior = LQ2;
-        BUSYAnterior = BUSY;
-        BUSY2Anterior = BUSY2;
-    end
+    LQAnterior = LQ;
+    LQ2Anterior = LQ2;
+    BUSYAnterior = BUSY;
+    BUSY2Anterior = BUSY2;
       
     proximoAbandono = false;
     if p.modelo == 4 && LQ > 0
@@ -179,14 +177,10 @@ MAXST = 2;
         %****************** Llama la funcion STAT para actualizar las estadisticas de base tiempo ******************
         %
         
-    if p.modelo == 2 || p.modelo == 3 || p.modelo == 4
-        TNOW = min(TNOW, LS);
-        [CLQ, CSUTIL, CSUTIL2, CLQ2] = ...
-            STAT(CLQ, LQAnterior, TNOW, TLE, CSUTIL, BUSYAnterior, ...
-                 p.modelo, CSUTIL2, BUSY2Anterior, CLQ2, LQ2Anterior);
-    elseif ~corte
-        [CLQ, CSUTIL] = STAT(CLQ, LQ, TNOW, TLE, CSUTIL, BUSY, p.modelo, CSUTIL2, BUSY2, CLQ2, LQ2);
-    end
+    TNOW = min(TNOW, LS);
+    [CLQ, CSUTIL, CSUTIL2, CLQ2] = ...
+        STAT(CLQ, LQAnterior, TNOW, TLE, CSUTIL, BUSYAnterior, ...
+             p.modelo, CSUTIL2, BUSY2Anterior, CLQ2, LQ2Anterior);
                    
   end
   OUTPT(TQT, NES, CSUTIL, TNOW, NEE, LQ, CLQ, p.modelo, tiemposRechazo, CSUTIL2, TQT2, CLQ2, NQ1, NQ2, NAbandonos, BUSY);
@@ -454,7 +448,7 @@ fprintf('CSUTIL= %2.3f', CSUTIL);
 fprintf('\n');
 fprintf('Tiempo Total Perdido en la Cola 1= %2.3f', TQT);
 fprintf('\n');
-if modelo == 4
+if modelo == 1 || modelo == 4
     NAtendidos = NES + BUSY;
     if NAtendidos > 0
         fprintf('Promedio de tiempo de espera en la Cola 1= %2.3f', TQT/NAtendidos);
